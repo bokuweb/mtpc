@@ -1,4 +1,5 @@
 mod parser;
+mod errors;
 
 fn main() {
     let mut t = Test {
