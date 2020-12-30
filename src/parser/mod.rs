@@ -1,22 +1,37 @@
+mod map;
 mod replicate;
 
 use std::mem::swap;
 
 use crate::errors::ParserError;
 
+pub use map::*;
 pub use replicate::*;
 
 pub trait Parser {
     type Output;
 
     fn parse<'a>(&self, input: &'a str) -> Result<(Self::Output, &'a str), ParserError>;
+
+    //     pub fn map<P, F, B>(p: P, f: F) -> Map<P, F>
+    // where
+    //     P: Parser,
+    //     F: FnMut(P::Output) -> B,
+    // {
+    fn map<F, B>(self, f: F) -> Map<Self, F>
+    where
+        Self: Sized,
+        F: Fn(Self::Output) -> B,
+    {
+        map(self, f)
+    }
 }
 
 pub fn char1(ch: char) -> impl Parser<Output = String> {
     satisfy(move |c| c == ch)
 }
 
-pub fn digit() -> impl Parser<Output = String> {
+pub fn digit() -> impl Parser<Output = String> + Copy {
     satisfy(|c| c.is_digit(10))
 }
 
@@ -92,6 +107,23 @@ fn many<'a>(parser: impl Parser<Output = String>) -> impl Parser<Output = String
 }
 
 #[derive(Copy, Clone)]
+pub struct Many1<P: Parser<Output = String>> {
+    parser: P,
+}
+
+impl<P: Parser<Output = String> + Copy> Parser for Many1<P> {
+    type Output = String;
+
+    fn parse<'a>(&self, input: &'a str) -> Result<(Self::Output, &'a str), ParserError> {
+        sequence2(self.parser, many(self.parser)).parse(input)
+    }
+}
+
+fn many1<'a>(parser: impl Parser<Output = String> + Copy) -> impl Parser<Output = String> + Copy {
+    Many1 { parser }
+}
+
+#[derive(Copy, Clone)]
 pub struct Sequence2<P1: Parser<Output = String>, P2: Parser<Output = String>> {
     p1: P1,
     p2: P2,
@@ -134,6 +166,42 @@ impl<O, P1: Parser<Output = O>, P2: Parser<Output = O>> Parser for Or<O, P1, P2>
 
 fn or<'a, O, P1: Parser<Output = O>, P2: Parser<Output = O>>(p1: P1, p2: P2) -> Or<O, P1, P2> {
     Or { p1, p2 }
+}
+
+#[derive(Clone)]
+pub struct Str {
+    s: String,
+}
+
+impl<'a> Parser for Str {
+    type Output = String;
+
+    fn parse<'b>(&self, input: &'b str) -> Result<(Self::Output, &'b str), ParserError> {
+        let mut rest: &str = input;
+        let mut output = "".to_owned();
+
+        for c in self.s.chars() {
+            let res = char1(c).parse(rest)?;
+            let (a, b) = &res;
+            output.push_str(a);
+            rest = b;
+        }
+        Ok((output, rest))
+    }
+}
+
+pub fn string(s: impl Into<String>) -> impl Parser<Output = String> {
+    Str { s: s.into() }
+}
+
+fn integer<'a>() -> impl Parser<Output = i64> + Copy {
+    many1(digit()).map(|s: String| {
+        let mut n = 0;
+        for c in s.chars() {
+            n = n * 10 + (c as i64 - '0' as i64);
+        }
+        n
+    })
 }
 
 #[test]
@@ -228,4 +296,22 @@ pub fn test_replicate() {
             .unwrap_err(),
         ParserError::NotSatisfy,
     );
+}
+
+#[test]
+pub fn test_string() {
+    assert_eq!(
+        or(string("ab"), string("ac")).parse("ab"),
+        Ok(("ab".to_string(), ""))
+    );
+    assert_eq!(
+        or(string("ab"), string("ac")).parse("ac"),
+        Ok(("ac".to_string(), ""))
+    );
+}
+
+#[test]
+pub fn test_integer() {
+    assert_eq!(integer().parse("123"), Ok((123, "")));
+    assert_eq!(integer().parse("abc"), Err(ParserError::NotSatisfy));
 }

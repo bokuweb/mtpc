@@ -1,6 +1,5 @@
 use crate::errors::ParserError;
-
-use super::Parser;
+use crate::parser::Parser;
 
 #[derive(Copy, Clone)]
 pub struct Replicate<P: Parser<Output = String>> {
@@ -23,6 +22,9 @@ impl<P: Parser<Output = String>> Parser for Replicate<P> {
     }
 }
 
-pub fn replicate<'a>(n: usize, parser: impl Parser<Output = String>) -> impl Parser<Output = String> {
+pub fn replicate<'a>(
+    n: usize,
+    parser: impl Parser<Output = String>,
+) -> impl Parser<Output = String> {
     Replicate { parser, n }
 }
