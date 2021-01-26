@@ -1,31 +1,12 @@
 mod map;
+mod parser;
 mod replicate;
-
-use std::mem::swap;
 
 use crate::errors::ParserError;
 
 pub use map::*;
+pub use parser::*;
 pub use replicate::*;
-
-pub trait Parser {
-    type Output;
-
-    fn parse<'a>(&self, input: &'a str) -> Result<(Self::Output, &'a str), ParserError>;
-
-    //     pub fn map<P, F, B>(p: P, f: F) -> Map<P, F>
-    // where
-    //     P: Parser,
-    //     F: FnMut(P::Output) -> B,
-    // {
-    fn map<F, B>(self, f: F) -> Map<Self, F>
-    where
-        Self: Sized,
-        F: Fn(Self::Output) -> B,
-    {
-        map(self, f)
-    }
-}
 
 pub fn char1(ch: char) -> impl Parser<Output = String> {
     satisfy(move |c| c == ch)
@@ -204,38 +185,6 @@ fn integer<'a>() -> impl Parser<Output = i64> + Copy {
     })
 }
 
-macro_rules! for_tuple {
-    ($h: ident $(, $id: ident)*) => {
-        #[allow(non_snake_case)]
-        impl <$h:, $($id:),*> Parser for ($h, $($id),*) where $h: Parser, $($id: Parser),* {
-            type Output = ($h::Output, $($id::Output),*);
-
-            fn parse<'b>(&self, input: &'b str) -> Result<(Self::Output, &'b str), ParserError> {
-                let rest = input;
-                let ($h, $($id),*) = self;
-                let ($h, rest) = $h.parse(rest)?;
-                $(
-                    let ($id, rest) = $id.parse(rest)?;
-                )*
-                Ok((($h, $($id),*), rest))
-            }
-        }
-    };
-}
-
-for_tuple!(P1, P2);
-for_tuple!(P1, P2, P3);
-
-// impl<'a, P1: Parser, P2: Parser> Parser for (P1, P2) {
-//     type Output = (P1::Output, P2::Output);
-//
-//     fn parse<'b>(&self, input: &'b str) -> Result<(Self::Output, &'b str), ParserError> {
-//         let (out1, rest) = self.0.parse(input)?;
-//         let (out2, rest) = self.1.parse(rest)?;
-//         Ok(((out1, out2), rest))
-//     }
-// }
-
 #[test]
 pub fn test_digit() {
     assert_eq!(digit().parse("123").unwrap(), ("1".to_string(), "23"));
@@ -348,27 +297,4 @@ pub fn test_integer() {
     assert_eq!(integer().parse("abc"), Err(ParserError::NotSatisfy));
 
     (integer(), integer()).parse("123");
-}
-
-#[test]
-pub fn test_tuple2() {
-    let (res, _rest) = (integer(), string("abc")).parse("123abc").unwrap();
-    assert_eq!(res.0, 123);
-    assert_eq!(res.1, "abc".to_owned());
-
-    let (res, _rest) = (integer(), string("abc"))
-        .map(|res: (i64, String)| res.0)
-        .parse("123abc")
-        .unwrap();
-    assert_eq!(res, 123);
-}
-
-#[test]
-pub fn test_tuple3() {
-    let (res, _rest) = (integer(), string("abc"), integer())
-        .parse("123abc111")
-        .unwrap();
-    assert_eq!(res.0, 123);
-    assert_eq!(res.1, "abc".to_owned());
-    assert_eq!(res.2, 111);
 }
