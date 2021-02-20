@@ -1,4 +1,5 @@
 use super::*;
+use crate::errors::ParserError;
 
 pub trait Parser {
     type Output;

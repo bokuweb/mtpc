@@ -1,5 +1,5 @@
 use crate::errors::ParserError;
-use crate::parser::Parser;
+use crate::parser::*;
 
 #[derive(Copy, Clone)]
 pub struct Replicate<P: Parser<Output = String>> {
@@ -27,4 +27,20 @@ pub fn replicate<'a>(
     parser: impl Parser<Output = String>,
 ) -> impl Parser<Output = String> {
     Replicate { parser, n }
+}
+
+#[test]
+pub fn test_replicate() {
+    assert_eq!(
+        sequence2(letter(), replicate(2, digit()))
+            .parse("a23")
+            .unwrap(),
+        ("a23".to_string(), "")
+    );
+    assert_eq!(
+        sequence2(letter(), replicate(2, digit()))
+            .parse("abc")
+            .unwrap_err(),
+        ParserError::NotSatisfy,
+    );
 }
