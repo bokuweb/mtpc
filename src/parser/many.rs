@@ -1,5 +1,5 @@
-use crate::parser::*;
 use crate::errors::ParserError;
+use crate::parser::*;
 
 #[derive(Copy, Clone)]
 pub struct Many<P: Parser<Output = String>> {
